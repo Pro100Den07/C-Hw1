@@ -1,0 +1,26 @@
+2)
+#include <iostream>
+using namespace std;
+int main()
+{
+  int x = 5;
+  int y = 7;
+  cout << "\n";
+  cout << x + y << " " << x * y;
+  cout << "\n";
+  return 0;
+}
+
+}
+- виведе 12 35
+
+3) Виправленний код:
+#include <iostream>
+using namespace std;
+
+int main()
+{
+  cout << "Hello World\n";
+  return 0;
+}
+- виведе фразу "Hello World"

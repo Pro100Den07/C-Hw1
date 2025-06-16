@@ -1,0 +1,26 @@
+#include <iostream>
+using namespace std;
+
+int main() {
+1)    
+    int                  myAge;                   
+    double               backyardArea;           
+    unsigned long long   starsInGalaxy;          
+    double               avgJanuaryPrecipitation; 
+
+2)
+    myAge                   = 30;
+    backyardArea            = 150;
+    starsInGalaxy           = 250000000000ULL;
+    avgJanuaryPrecipitation = 46;
+
+    
+
+3)
+    const double PI = 3.14159;
+
+
+
+4) 
+    const float PI_F = 3.14159f;  
+    float piFloat    = PI_F; 

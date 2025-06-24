@@ -1,0 +1,62 @@
+#include <iostream>
+using namespace std;
+
+1)  Perimeter
+unsigned long int Perimeter(unsigned short int length, unsigned short int width);
+
+2) Визначення Perimeter
+unsigned long int Perimeter(unsigned short int length, unsigned short int width) {
+    return 2 * length + 2 * width;
+}
+периметр прямокутника
+    unsigned short int length, width;
+    cout << "\nEnter length and width of rectangle:\n";
+    cout << "Length: ";
+    cin  >> length;
+    cout << "Width: ";
+    cin  >> width;
+    cout << "Perimeter = " << Perimeter(length, width) << "\n";
+
+
+
+3)  myFunc 
+int myFunc(unsigned short int x);
+
+
+
+44) Визначення  myFunc 
+int myFunc(unsigned short int x) {
+    return 4 * x;
+}
+  Демонстрація роботи myFunc
+    unsigned short int x = 5;
+    int y = myFunc(x);
+    cout << "myFunc(" << x << ") = " << y << endl;
+
+
+5) Прототип та визначення функції SafeDivide
+int SafeDivide(unsigned short int a, unsigned short int b) {
+    if (b == 0)
+        return -1;              // перевірка ділення на нуль
+    else
+        return a / b;
+}
+
+int main() {
+    
+ 6) SafeDivide-
+    unsigned short int num1, num2;
+    cout << "\nEnter two numbers for division:\n";
+    cout << "First number: ";
+    cin  >> num1;
+    cout << "Second number: ";
+    cin  >> num2;
+
+    int result = SafeDivide(num1, num2);
+    if (result == -1)
+        cout << "Error: Division by zero is not allowed.\n";
+    else
+        cout << "Division result: " << result << "\n";
+
+    return 0;
+}

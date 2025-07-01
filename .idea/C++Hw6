@@ -1,0 +1,109 @@
+#include <iostream>
+
+1)
+int power(int base, int exponent) {
+    if (exponent == 0) {
+        return 1; 
+    } else if (exponent < 0) {
+        return 1 / power(base, -exponent); 
+    } else {
+        return base * power(base, exponent - 1); 
+    }
+}
+
+int main() {
+    int number, exponent;
+
+    std::cout << "Введіть число: ";
+    std::cin >> number;
+
+    std::cout << "Введіть показник степеня: ";
+    std::cin >> exponent;
+
+    int result = power(number, exponent);
+    std::cout << number << " в степені " << exponent << " = " << result << std::endl;
+
+    return 0;
+}
+
+2)
+
+class Employee {
+public:
+    int age;
+    int yearsOfService;
+    double salary;
+};
+
+3-4)
+#include <iostream>
+
+class Employee {
+private:
+    int age;
+    int yearsOfService;
+    double salary;
+
+public:
+   
+    int getAge() const { return age; }
+    int getYearsOfService() const { return yearsOfService; }
+    double getSalary() const { return salary; }
+
+    void setAge(int ageValue) { age = ageValue; }
+    void setYearsOfService(int years) { yearsOfService = years; }
+    void setSalary(double salaryValue) { salary = salaryValue; }
+};
+int main() {
+    Employee employee1;
+    Employee employee2;
+
+  
+    employee1.setAge(30);
+    employee1.setYearsOfService(5);
+    employee1.setSalary(60000.0);
+
+   
+    employee2.setAge(25);
+    employee2.setYearsOfService(2);
+    employee2.setSalary(50000.0);
+
+   
+    std::cout << "Employee 1:" << std::endl;
+    std::cout << "Age: " << employee1.getAge() << std::endl;
+    std::cout << "Years of Service: " << employee1.getYearsOfService() << std::endl;
+    std::cout << "Salary: " << employee1.getSalary() << std::endl;
+
+   
+    std::cout << "\nEmployee 2:" << std::endl;
+    std::cout << "Age: " << employee2.getAge() << std::endl;
+    std::cout << "Years of Service: " << employee2.getYearsOfService() << std::endl;
+    std::cout << "Salary: " << employee2.getSalary() << std::endl;
+
+    return 0;
+}
+
+6)
+
+
+class Employee {
+private:
+    int age;
+    int yearsOfService;
+    double salary;
+
+public:
+   
+    Employee(int ageValue, int years, double salaryValue) : age(ageValue), yearsOfService(years), salary(salaryValue) {}
+
+   
+    int getAge() const { return age; }
+    int getYearsOfService() const { return yearsOfService; }
+    double getSalary() const { return salary; }
+
+    
+    int getSalaryInThousands() const {
+        double salaryInThousands = salary / 1000.0;
+        return static_cast<int>(std::round(salaryInThousands * 10) / 10.0); // Округлення до найближчих 10 доларів
+    }
+};

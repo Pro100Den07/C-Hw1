@@ -1,0 +1,84 @@
+1)
+
+for (int x = 0; x < 100; x++)
+буде x == 100.
+
+2)
+
+int array[10][10];
+
+for (int i = 0; i < 10; i++)
+{
+    for (int j = 0; j < 10; j++)
+    {
+        array[i][j] = 0;
+    }
+}
+
+3)
+
+for (int i = 100; i <= 200; i += 2)
+{
+    std::cout << i << " ";
+}
+
+4)
+
+int i = 100;
+while (i <= 200)
+{
+    std::cout << i << " ";
+    i += 2;
+}
+
+5)
+
+int i = 100;
+do
+{
+std::cout << i << " ";
+    i += 2;
+} while (i <= 200);
+
+6)
+
+int counter = 0;
+while (counter < 10)
+{
+    cout << "counter: " << counetr:
+}
+
+ Правильний код:
+
+int counter = 0;
+while (counter < 10)
+{
+    std::cout << "counter: " << counter << std::endl;
+    counter++;
+}
+
+7)
+
+for (int counter = 0; counter < 10: counter++);
+    cout << counter << " ";
+
+for (int counter = 0; counter < 10; counter++)
+{
+    std::cout << counter << " ";
+}
+
+8)
+
+int counter = 100;
+while (counter < 10)
+{
+    cout << "counter now: " << counter;
+    counter--;
+}
+
+int counter = 100;
+while (counter > 10)
+{
+    std::cout << "counter now: " << counter << std::endl;
+    counter--;
+}

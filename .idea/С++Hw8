@@ -1,0 +1,60 @@
+1)
+• int *pOne; - зберігає адрес та оголошує вказівник "pOne"
+
+• int vTwo: - звичайне оголошення vTwo змінної int
+
+• int *pThree = &vTwo; - оголошує pThree змінною int з адресою vTwo
+
+2)
+
+unsigned short yourAge;
+unsigned short *pAge = nullptr;  
+unsigned short *pAge = &yourAge;
+
+3)
+
+
+*pAge = 50;
+yourAge == 50
+
+4)
+
+#include <iostream>
+
+int main() {
+    int  value = 0;      
+    int* pValue = nullptr; 
+
+    pValue = &value;   
+    *pValue = 123;      
+
+    std::cout << "value = " << value << std::endl;   
+    std::cout << "*pValue = " << *pValue << std::endl; 
+
+    return 0;
+}
+
+5)
+
+
+int *pInt;
+*pInt = 9; 
+
+Правильний код:
+
+int *pInt = new int; 
+*pInt = 9;
+std::cout << *pInt;
+delete pInt;  
+
+6)
+
+
+int SomeVariable = 5;
+int *pVar = &SomeVariable;
+pVar = 9;   
+    
+Правильно код:
+
+int another = 9;
+pVar = &another;

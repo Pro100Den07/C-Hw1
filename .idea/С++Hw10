@@ -1,0 +1,44 @@
+#include <iostream>
+using namespace std;
+
+class SimpleCircle {
+public:
+
+  2)
+    SimpleCircle(int r = 0) : itsRadius(new int(r)) {}
+
+   3)
+
+    SimpleCircle(const SimpleCircle& other)
+        : itsRadius(new int(*other.itsRadius)) {}
+
+    4) 
+
+    SimpleCircle& operator=(const SimpleCircle& rhs) {
+        if (this != &rhs) {
+            delete itsRadius;
+            itsRadius = new int(*rhs.itsRadius);
+        }
+        return *this;
+    }
+
+
+    1)
+
+    SimpleCircle& operator++() {
+        ++(*itsRadius);
+        return *this;
+    }
+    SimpleCircle operator++(int) {
+        SimpleCircle temp(*this);
+        ++(*itsRadius);
+        return temp;
+    }
+    ~SimpleCircle() {
+        delete itsRadius;
+    }
+    int getRadius() const { return *itsRadius; }
+
+private:
+    int* itsRadius;
+};

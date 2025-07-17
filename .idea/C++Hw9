@@ -1,0 +1,90 @@
+1)   
+#include <iostream>
+using namespace std;
+
+int main() {
+    int var = 10;           // звичайна змінна
+    int& ref = var;         // посилання на var
+    int* ptr = &var;        // вказівник на var
+
+    cout << "Початковий var: " << var << endl;
+
+    ref = 20;
+    cout << "Після ref = 20; var = " << var << endl;
+
+    *ptr = 30;
+    cout << "Після *ptr = 30; var = " << var << endl;
+
+    return 0;
+}
+
+2)
+
+#include <iostream>
+using namespace std;
+
+int main() {
+    int varOne = 6;
+    const int* const ptr = &varOne;  
+    // *ptr = 7;      // ❌ помилка: не можна переназначити const int* const
+
+    int varTwo = 0;
+    // ptr = &varTwo; 
+
+    cout << "varOne = " << varOne << endl;
+    cout << "ptr вказує на адрес: " << ptr << ", значення: " << *ptr << endl;
+
+    return 0;
+}
+
+4) 
+
+#include <iostream>
+using namespace std;
+
+int* getPointer() {
+    int local = 42;
+    return &local;  
+}
+
+int main() {
+    int* p = getPointer();
+    cout << *p << endl; 
+    return 0;
+}
+
+6)
+
+#include <iostream>
+using namespace std;
+
+int main() {
+    int* p = new int(100);
+    return 0;
+}
+
+9)
+
+#include <iostream>
+#include <memory>
+using namespace std;
+
+class Cat {
+public:
+    Cat(int age) : itsAge(age) {}
+    ~Cat() {}
+    int GetAge() const { return itsAge; }
+private:
+    int itsAge;
+};
+
+unique_ptr<Cat> MakeCat(int age) {
+    return make_unique<Cat>(age);
+}
+
+int main() {
+    auto pBoots = MakeCat(7);
+    cout << "Boots is: " << pBoots->GetAge() << " years old" << endl;
+    // пам'ять звільниться автоматично при виході з області видимості
+    return 0;
+}

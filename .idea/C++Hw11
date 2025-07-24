@@ -1,0 +1,44 @@
+1)
+class Rectangle {
+public:
+    Rectangle(double w, double h);
+    virtual ~Rectangle();
+    Rectangle(const Rectangle&);
+
+    virtual Rectangle* clone() const {
+        return new Rectangle(*this);
+    }
+};
+
+ для Square 
+
+#include "Rectangle.h"
+class Square : public Rectangle {
+public:
+    Square(double side)
+      : Rectangle(side, side) {}
+    Square(const Square& other)
+      : Rectangle(other) {}
+
+   
+    virtual Square* clone() const override {
+        return new Square(*this);
+    }
+};
+2)
+void SomeFunction(const Shape&);
+
+void SomeFunction(const Shape*);
+
+3)
+
+class Shape {
+public:
+    Shape();                    
+    virtual ~Shape();           
+    Shape(const Shape&);       
+    
+    virtual Shape* clone() const {
+        return new Shape(*this);
+    }
+};

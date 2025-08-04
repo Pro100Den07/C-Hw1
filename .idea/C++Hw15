@@ -1,0 +1,91 @@
+#include <iostream>
+using namespace std;
+
+1)
+
+class Vehicle {
+public:
+    virtual void drive() = 0;         
+    virtual void showType() = 0;     
+};
+
+class Car : public Vehicle {
+public:
+    void drive() override {
+        cout << "Car is driving on the road." << endl;
+    }
+    
+    void showType() override {
+        cout << "Type: Car" << endl;
+    }
+};
+
+class Bus : public Vehicle {
+public:
+    void drive() override {
+        cout << "Bus is driving on the highway." << endl;
+    }
+    
+    void showType() override {
+        cout << "Type: Bus" << endl;
+    }
+};
+
+2)
+
+class AbstractCar : public Vehicle {
+public:
+    void drive() override {
+        cout << "AbstractCar is being driven (base call)." << endl;
+    }
+  
+    virtual void showType() = 0;
+};
+
+class SportsCar : public AbstractCar {
+public:
+    void showType() override {
+        AbstractCar::drive(); 
+        cout << "Type: SportsCar" << endl;
+    }
+};
+
+class Wagon : public AbstractCar {
+public:
+    void showType() override {
+        AbstractCar::drive();
+        cout << "Type: Wagon" << endl;
+    }
+};
+
+class Coupe : public AbstractCar {
+public:
+    void showType() override {
+        AbstractCar::drive();
+        cout << "Type: Coupe" << endl;
+    }
+};
+
+3)
+class InstanceCounter {
+private:
+    int id;
+    static int count;
+
+public:
+    InstanceCounter(int _id) : id(_id) {
+        count++;
+        cout << "Created object with ID: " << id << ". Total: " << count << endl;
+    }
+
+    ~InstanceCounter() {
+        count--;
+        cout << "Destroyed object with ID: " << id << ". Remaining: " << count << endl;
+    }
+
+    static int getCount() {
+        return count;
+    }
+};
+
+int InstanceCounter::count = 0; 

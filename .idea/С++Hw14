@@ -1,0 +1,39 @@
+#include <iostream>
+using namespace std;
+
+1)
+
+class Rocket {
+public:
+    void launch() {
+        cout << "Launching like a rocket!" << endl;
+    }
+};
+
+
+class Airplane {
+public:
+    void fly() {
+        cout << "Flying like an airplane!" << endl;
+    }
+};
+
+
+2)
+
+class Boeing747 : public JetPlane {
+public:
+    void passengerService() {
+        cout << "Serving passengers on Boeing747!" << endl;
+    }
+};
+
+int main() {
+    Boeing747 plane;
+    plane.launch();            // Метод від Rocket
+    plane.fly();               // Метод від Airplane
+    plane.turboBoost();        // Метод від JetPlane
+    plane.passengerService();  // Метод від Boeing747
+
+    return 0;
+}

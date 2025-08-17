@@ -1,0 +1,111 @@
+#include <iostream>
+using namespace std;
+
+ 1)
+
+class Animal {
+private:
+    String name;
+public:
+    Animal(const char* n) : name(n) {}
+    void print() { cout << "Animal: " << name << endl; }
+};
+
+ 2)
+
+class BoundedArray {
+private:
+    int* arr;
+    int size;
+public:
+    BoundedArray(int s) : size(s) {
+        arr = new int[size];
+        for (int i = 0; i < size; i++) arr[i] = 0;
+    }
+    ~BoundedArray() { delete[] arr; }
+
+    int& operator[](int index) {
+        if (index < 0 || index >= size) {
+            cout << "Індекс поза межами!" << endl;
+            exit(1);
+        }
+        return arr[index];
+    }
+
+    int getSize() const { return size; }
+};
+
+ 3)
+
+class Set {
+private:
+    BoundedArray elements;
+    int count;
+public:
+    Set(int capacity) : elements(capacity), count(0) {}
+
+    void add(int value) {
+        for (int i = 0; i < count; i++) {
+            if (elements[i] == value) return;
+        }
+        if (count < elements.getSize()) {
+            elements[count++] = value;
+        } else {
+            cout << "Множина переповнена!" << endl;
+        }
+    }
+
+    void print() const {
+        cout << "{ ";
+        for (int i = 0; i < count; i++) cout << elements[i] << " ";
+        cout << "}" << endl;
+    }
+};
+
+ 5-6)
+
+class FixedAnimal {
+public:
+    FixedAnimal() : itsWeight(0), itsAge(0) {}
+
+    int GetWeight() const { return itsWeight; }
+    int GetAge() const { return itsAge; }
+
+    friend void setValue(FixedAnimal&, int);
+
+private:
+    int itsWeight;
+    int itsAge;
+};
+
+void setValue(FixedAnimal &theAnimal, int theWeight) {
+    theAnimal.itsWeight = theWeight;
+}
+
+int main() {
+    cout << "=== Завдання 1: Animal + String ===" << endl;
+    Animal a("Lion");
+    a.print();
+
+    cout << "\n=== Завдання 2: BoundedArray ===" << endl;
+    BoundedArray arr(3);
+    arr[0] = 10; arr[1] = 20; arr[2] = 30;
+    for (int i = 0; i < arr.getSize(); i++) cout << arr[i] << " ";
+    cout << endl;
+
+    cout << "\n=== Завдання 3: Set ===" << endl;
+    Set s(5);
+    s.add(1); s.add(2); s.add(2); s.add(3);
+    s.print();
+
+    cout << "\n=== Завдання 4: String з << ===" << endl;
+    String hello("Hello world");
+    cout << hello << endl;
+
+    cout << "\n=== Завдання 5-6: friend ===" << endl;
+    FixedAnimal dog;
+    setValue(dog, 15);
+    cout << "Вага собаки: " << dog.GetWeight() << endl;
+
+    return 0;
+}

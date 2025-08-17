@@ -1,0 +1,39 @@
+#include <iostream>
+using namespace std;
+
+1)
+
+int main() {
+    int number;
+    cout << "Введіть число: ";   // використання cout
+    cin >> number;               // використання cin
+
+    if (cin.fail()) {
+        cerr << "Помилка вводу числа!" << endl;   
+    } else {
+        clog << "Користувач ввів коректне число." << endl;  
+        cout << "Ви ввели: " << number << endl;
+    }
+
+    return 0;
+}
+
+3)
+
+using namespace std;
+
+int main() {
+    string str1, str2;
+
+    cout << "Введіть перший рядок: ";
+    getline(cin, str1);
+
+    cout << "Введіть другий рядок: ";
+    getline(cin, str2);
+
+    cout << "Ви ввели:" << endl;
+    cout << "Рядок 1: " << str1 << endl;
+    cout << "Рядок 2: " << str2 << endl;
+
+    return 0;
+}

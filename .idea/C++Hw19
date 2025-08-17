@@ -1,0 +1,58 @@
+
+#include <iostream>
+#include <fstream>
+#include <cctype>   // isprint, ispunct
+using namespace std;
+
+int main1(int argc, char* argv[]) {
+    if (argc < 2) {
+        cerr << "Використання: " << argv[0] << "<File>" << endl;
+        return 1;
+    }
+
+    ifstream file(argv[1], ios::in);
+    if (!file) {
+        cerr << "Не вдалося відкрити файл: " << argv[1] << endl;
+        return 1;
+    }
+
+    char ch;
+    while (file.get(ch)) {
+        if (isprint(static_cast<unsigned char>(ch)) || ispunct(static_cast<unsigned char>(ch))) {
+            cout << ch;
+        }
+    }
+
+    file.close();
+    return 0;
+}
+
+ 2) 
+
+int main2(int argc, char* argv[]) {
+    for (int i = argc - 1; i > 0; --i) {
+        cout << argv[i] << " ";
+    }
+    cout << endl;
+    return 0;
+}
+
+ 3) 
+
+#include <iostream>
+
+int main()
+{
+    cout << "Hello world!" << endl;   
+    return 0;
+}
+
+ 4) 
+
+#include <iostream>
+using namespace std;
+
+int main3() {
+    cout << "Hello world!" << endl;
+    return 0;
+}

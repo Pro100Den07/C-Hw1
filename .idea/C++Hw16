@@ -1,0 +1,121 @@
+#include <iostream>
+using namespace std;
+
+1)
+
+class MyClass {
+private:
+    int value;
+    static int count;  // статична змінна (загальна для всіх об’єктів)
+
+public:
+    MyClass(int v) : value(v) {
+        count++;
+        cout << "Створено об'єкт зі значенням " << value 
+             << ". Кількість об'єктів: " << count << endl;
+    }
+    ~MyClass() {
+        count--;
+        cout << "Видалено об'єкт зі значенням " << value 
+             << ". Кількість об'єктів: " << count << endl;
+    }
+
+    int getValue() { return value; }
+    static int getCount() { return count; }
+};
+
+int MyClass::count = 0;
+
+
+ 2)
+
+void task2() {
+    cout << "\n=== Завдання 2 ===" << endl;
+    MyClass* a = new MyClass(10);
+    MyClass* b = new MyClass(20);
+    MyClass* c = new MyClass(30);
+
+    cout << "Кількість об'єктів: " << MyClass::getCount() << endl;
+
+    delete a;
+    cout << "Після видалення a -> count = " << MyClass::getCount() << endl;
+
+    delete b;
+    cout << "Після видалення b -> count = " << MyClass::getCount() << endl;
+
+    delete c;
+    cout << "Після видалення c -> count = " << MyClass::getCount() << endl;
+}
+
+
+3)
+
+void task3() {
+    cout << "\n=== Завдання 3 ===" << endl;
+    MyClass x(1), y(2), z(3);
+    cout << "Кількість об'єктів (через статичну функцію): "
+         << MyClass::getCount() << endl;
+}
+
+
+  4)
+
+void task4() {
+    cout << "\n=== Завдання 4 ===" << endl;
+    MyClass obj(42);
+
+    int (MyClass::*ptrFunc)() = &MyClass::getValue;
+    cout << "Значення obj = " << (obj.*ptrFunc)() << endl;
+}
+
+
+ 5)
+
+class ExtendedClass {
+private:
+    int value1, value2, value3;
+    static int count;
+public:
+    ExtendedClass(int v1, int v2, int v3) : value1(v1), value2(v2), value3(v3) {
+        count++;
+    }
+    ~ExtendedClass() { count--; }
+
+    int getValue1() { return value1; }
+    int getValue2() { return value2; }
+    int getValue3() { return value3; }
+
+    static int getCount() { return count; }
+};
+int ExtendedClass::count = 0;
+
+void task5() {
+    cout << "\n=== Завдання 5 ===" << endl;
+    ExtendedClass obj(11, 22, 33);
+
+    int (ExtendedClass::*ptr)();
+
+    ptr = &ExtendedClass::getValue1;
+    cout << "Value1 = " << (obj.*ptr)() << endl;
+
+    ptr = &ExtendedClass::getValue2;
+    cout << "Value2 = " << (obj.*ptr)() << endl;
+
+    ptr = &ExtendedClass::getValue3;
+    cout << "Value3 = " << (obj.*ptr)() << endl;
+}
+
+int main() {
+    cout << "=== Завдання 1 ===" << endl;
+    {
+        MyClass a(5);
+        MyClass b(7);
+    }
+
+    task2();
+    task3();
+    task4();
+    task5();
+
+    return 0;
+}

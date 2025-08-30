@@ -1,0 +1,429 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <memory>
+#include <unordered_map>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
+#include <algorithm>
+#include <optional>
+
+
+types / helpers
+using Date = std::chrono::system_clock::time_point;
+using namespace std::chrono;
+
+static Date days_from_now(int days) {
+    return system_clock::now() + hours(24 * days);
+}
+
+static long nights_between(Date from, Date to) {
+    auto dur = std::chrono::duration_cast<std::chrono::hours>(to - from);
+    long days = dur.count() / 24;
+    return std::max(0L, days);
+}
+
+static std::string date_to_string(Date d) {
+    std::time_t t = system_clock::to_time_t(d);
+    std::tm tm = *std::localtime(&t);
+    std::ostringstream ss;
+    ss << std::put_time(&tm, "%Y-%m-%d");
+    return ss.str();
+}
+
+
+Domain classes
+enum class RoomStatus { AVAILABLE, OCCUPIED, BLOCKED, MAINTENANCE };
+enum class RoomType { SINGLE, DOUBLE, SUITE, DELUXE };
+
+class Guest {
+public:
+    Guest(std::string id, std::string name, std::string email)
+        : id_(std::move(id)), name_(std::move(name)), email_(std::move(email)) {}
+    const std::string& id() const { return id_; }
+    const std::string& name() const { return name_; }
+    const std::string& email() const { return email_; }
+private:
+    std::string id_;
+    std::string name_;
+    std::string email_;
+};
+
+class Room {
+public:
+    Room(std::string id, RoomType type, int capacity, double basePrice)
+        : id_(std::move(id)), type_(type), capacity_(capacity), status_(RoomStatus::AVAILABLE), basePrice_(basePrice) {}
+
+    const std::string& id() const { return id_; }
+    RoomType type() const { return type_; }
+    int capacity() const { return capacity_; }
+    RoomStatus status() const { return status_; }
+    void setStatus(RoomStatus s) { status_ = s; }
+    double basePrice() const { return basePrice_; }
+
+private:
+    std::string id_;
+    RoomType type_;
+    int capacity_;
+    RoomStatus status_;
+    double basePrice_;
+};
+
+
+class RatePlan {
+public:
+    RatePlan(std::string id, double basePrice)
+        : id_(std::move(id)), basePrice_(basePrice) {}
+    const std::string& id() const { return id_; }
+    double priceForDates(Date from, Date to) const {
+        long nights = nights_between(from, to);
+        return basePrice_ * static_cast<double>(std::max(1L, nights));
+    }
+private:
+    std::string id_;
+    double basePrice_;
+};
+
+enum class ReservationStatus { PENDING, CONFIRMED, CANCELLED, CHECKED_IN, CHECKED_OUT };
+
+class Reservation {
+public:
+    Reservation(std::string id, std::shared_ptr<Guest> guest, Date from, Date to)
+        : id_(std::move(id)), guest_(std::move(guest)), from_(from), to_(to), status_(ReservationStatus::PENDING) {}
+
+    const std::string& id() const { return id_; }
+    std::shared_ptr<Guest> guest() const { return guest_; }
+    Date from() const { return from_; }
+    Date to() const { return to_; }
+    ReservationStatus status() const { return status_; }
+    void setStatus(ReservationStatus s) { status_ = s; }
+
+    void addRoom(const std::shared_ptr<Room>& room, const RatePlan& ratePlan) {
+        rooms_.push_back(room);
+        ratePlans_.push_back(ratePlan);
+        cachedTotal_ = -1.0; // invalidate cache
+    }
+
+    const std::vector<std::shared_ptr<Room>>& rooms() const { return rooms_; }
+
+    double totalAmount() {
+        if (cachedTotal_ >= 0.0) return cachedTotal_;
+        double total = 0.0;
+        for (size_t i = 0; i < rooms_.size(); ++i) {
+            // Use corresponding ratePlan if available
+            total += ratePlans_[i].priceForDates(from_, to_);
+        }
+        cachedTotal_ = total;
+        return cachedTotal_;
+    }
+
+private:
+    std::string id_;
+    std::shared_ptr<Guest> guest_;
+    Date from_, to_;
+    ReservationStatus status_;
+    std::vector<std::shared_ptr<Room>> rooms_;
+    std::vector<RatePlan> ratePlans_;
+    double cachedTotal_ = -1.0;
+};
+
+
+Interfaces
+
+class IAvailabilityService {
+public:
+    virtual ~IAvailabilityService() = default;
+    virtual std::vector<std::shared_ptr<Room>> findAvailable(RoomType type, Date from, Date to) = 0;
+    virtual bool blockRooms(const std::vector<std::string>& roomIds, Date from, Date to, const std::string& holdId) = 0;
+    virtual bool releaseHold(const std::string& holdId) = 0;
+};
+
+class IReservationManager {
+public:
+    virtual ~IReservationManager() = default;
+    virtual std::shared_ptr<Reservation> createReservation(std::shared_ptr<Guest> guest, Date from, Date to) = 0;
+    virtual bool addRoomToReservation(const std::string& reservationId, const std::string& roomId, const RatePlan& ratePlan) = 0;
+    virtual bool confirmReservation(const std::string& reservationId, const std::string& paymentRef) = 0;
+    virtual bool cancelReservation(const std::string& reservationId) = 0;
+    virtual std::shared_ptr<Reservation> getReservation(const std::string& reservationId) = 0;
+};
+
+class IPaymentGateway {
+public:
+    virtual ~IPaymentGateway() = default;
+    virtual std::string authorize(double amount, const std::string& paymentToken) = 0; // returns auth id
+    virtual bool capture(const std::string& authId) = 0;
+    virtual bool refund(const std::string& txId, double amount) = 0;
+};
+
+class NotificationService {
+public:
+    void sendEmail(const std::string& to, const std::string& subject, const std::string& body) {
+        std::cout << "[Email] To: " << to << " | Subject: " << subject << "\n" << body << "\n\n";
+    }
+    void sendSMS(const std::string& phone, const std::string& message) {
+        std::cout << "[SMS] To: " << phone << " | " << message << "\n\n";
+    }
+};
+
+
+Simple in-memory implementations
+
+class InMemoryAvailabilityService : public IAvailabilityService {
+public:
+    InMemoryAvailabilityService() = default;
+
+    void addRoom(std::shared_ptr<Room> room) {
+        rooms_[room->id()] = room;
+    }
+
+    std::vector<std::shared_ptr<Room>> findAvailable(RoomType type, Date /*from*/, Date /*to*/) override {
+        std::vector<std::shared_ptr<Room>> out;
+        for (auto& kv : rooms_) {
+            auto r = kv.second;
+            if (r->type() == type && r->status() == RoomStatus::AVAILABLE) {
+                out.push_back(r);
+            }
+        }
+        return out;
+    }
+
+     blockRooms will set room status to BLOCKED and remember the hold
+    bool blockRooms(const std::vector<std::string>& roomIds, Date /*from*/, Date /*to*/, const std::string& holdId) override {
+       check all available
+        for (auto& id : roomIds) {
+            auto it = rooms_.find(id);
+            if (it == rooms_.end()) return false;
+            if (it->second->status() != RoomStatus::AVAILABLE) return false;
+        }
+         block
+        for (auto& id : roomIds) {
+            rooms_[id]->setStatus(RoomStatus::BLOCKED);
+            holds_[holdId].push_back(id);
+        }
+        return true;
+    }
+
+    bool releaseHold(const std::string& holdId) override {
+        auto it = holds_.find(holdId);
+        if (it == holds_.end()) return false;
+        for (auto& id : it->second) {
+            auto rit = rooms_.find(id);
+            if (rit != rooms_.end()) rit->second->setStatus(RoomStatus::AVAILABLE);
+        }
+        holds_.erase(it);
+        return true;
+    }
+
+   final confirm: set blocked rooms to OCCUPIED
+    bool confirmHold(const std::string& holdId) {
+        auto it = holds_.find(holdId);
+        if (it == holds_.end()) return false;
+        for (auto& id : it->second) {
+            auto rit = rooms_.find(id);
+            if (rit != rooms_.end()) rit->second->setStatus(RoomStatus::OCCUPIED);
+        }
+        holds_.erase(it);
+        return true;
+    }
+
+    std::shared_ptr<Room> getRoom(const std::string& id) {
+        auto it = rooms_.find(id);
+        if (it == rooms_.end()) return nullptr;
+        return it->second;
+    }
+
+private:
+    std::unordered_map<std::string, std::shared_ptr<Room>> rooms_;
+    std::unordered_map<std::string, std::vector<std::string>> holds_;
+};
+
+// Very tiny fake gateway for demo
+class FakePaymentGateway : public IPaymentGateway {
+public:
+    std::string authorize(double amount, const std::string& paymentToken) override {
+        (void)paymentToken;
+        std::ostringstream ss;
+        ss << "AUTH-" << ++counter_ << "-AMT-" << static_cast<int>(amount);
+        std::string auth = ss.str();
+        auths_.push_back(auth);
+        std::cout << "[Payment] Authorized " << amount << ", authId=" << auth << "\n";
+        return auth;
+    }
+    bool capture(const std::string& authId) override {
+        // in real life check auth exists
+        std::cout << "[Payment] Captured authId=" << authId << "\n";
+        return true;
+    }
+    bool refund(const std::string& txId, double amount) override {
+        (void)txId; (void)amount;
+        std::cout << "[Payment] Refunded " << amount << " for tx " << txId << "\n";
+        return true;
+    }
+private:
+    int counter_ = 0;
+    std::vector<std::string> auths_;
+};
+
+// ---------------- ReservationManagerImpl ----------------
+
+class ReservationManagerImpl : public IReservationManager {
+public:
+    ReservationManagerImpl(std::shared_ptr<InMemoryAvailabilityService> avail,
+                           std::shared_ptr<IPaymentGateway> pay,
+                           std::shared_ptr<NotificationService> notifier)
+        : avail_(std::move(avail)), pay_(std::move(pay)), notifier_(std::move(notifier)) {}
+
+    std::shared_ptr<Reservation> createReservation(std::shared_ptr<Guest> guest, Date from, Date to) override {
+        std::string rid = "RES-" + std::to_string(++resCounter_);
+        auto res = std::make_shared<Reservation>(rid, guest, from, to);
+        reservations_[rid] = res;
+        std::cout << "Created reservation " << rid << " for guest " << guest->name() << " from " << date_to_string(from) << " to " << date_to_string(to) << "\n";
+        return res;
+    }
+
+    // Add room to reservation (roomId must exist and be BLOCKED or AVAILABLE — here we require available and will block it)
+    bool addRoomToReservation(const std::string& reservationId, const std::string& roomId, const RatePlan& ratePlan) override {
+        auto res = getReservation(reservationId);
+        if (!res) return false;
+        auto room = avail_->getRoom(roomId);
+        if (!room) return false;
+        if (room->status() != RoomStatus::AVAILABLE) {
+            std::cerr << "Room not available: " << roomId << "\n";
+            return false;
+        }
+        // create temp hold
+        std::string holdId = "HOLD-" + reservationId;
+        if (!avail_->blockRooms({roomId}, res->from(), res->to(), holdId)) {
+            std::cerr << "Failed to block room " << roomId << "\n";
+            return false;
+        }
+        // attach room to reservation
+        res->addRoom(room, ratePlan);
+        holdsForReservation_[reservationId] = holdId;
+        std::cout << "Added room " << roomId << " to reservation " << reservationId << "\n";
+        return true;
+    }
+
+    // Confirm: authorize/capture payment, mark rooms occupied, notify guest
+    bool confirmReservation(const std::string& reservationId, const std::string& paymentToken) override {
+        auto res = getReservation(reservationId);
+        if (!res) return false;
+        if (res->status() != ReservationStatus::PENDING) {
+            std::cerr << "Reservation is not pending\n";
+            return false;
+        }
+        double amount = res->totalAmount();
+        // authorize
+        std::string auth = pay_->authorize(amount, paymentToken);
+        // capture (for demo we capture immediately)
+        if (!pay_->capture(auth)) {
+            std::cerr << "Payment capture failed\n";
+            return false;
+        }
+        // confirm availability service: turn holds into occupied
+        auto hit = holdsForReservation_.find(reservationId);
+        if (hit != holdsForReservation_.end()) {
+            std::string holdId = hit->second;
+            if (!avail_->confirmHold(holdId)) {
+                std::cerr << "Failed to confirm hold " << holdId << "\n";
+                return false;
+            }
+            holdsForReservation_.erase(hit);
+        }
+        res->setStatus(ReservationStatus::CONFIRMED);
+        // notify
+        notifier_->sendEmail(res->guest()->email(), "Reservation Confirmed: " + res->id(),
+                             "Your reservation is confirmed. Total: " + std::to_string(amount));
+        std::cout << "Reservation " << reservationId << " confirmed. Total amount: " << amount << "\n";
+        return true;
+    }
+
+    bool cancelReservation(const std::string& reservationId) override {
+        auto res = getReservation(reservationId);
+        if (!res) return false;
+        // release holds
+        auto hit = holdsForReservation_.find(reservationId);
+        if (hit != holdsForReservation_.end()) {
+            avail_->releaseHold(hit->second);
+            holdsForReservation_.erase(hit);
+        }
+        res->setStatus(ReservationStatus::CANCELLED);
+        notifier_->sendEmail(res->guest()->email(), "Reservation Cancelled: " + res->id(), "Your reservation was cancelled.");
+        std::cout << "Reservation " << reservationId << " cancelled\n";
+        return true;
+    }
+
+    std::shared_ptr<Reservation> getReservation(const std::string& reservationId) override {
+        auto it = reservations_.find(reservationId);
+        if (it == reservations_.end()) return nullptr;
+        return it->second;
+    }
+
+private:
+    std::unordered_map<std::string, std::shared_ptr<Reservation>> reservations_;
+    std::unordered_map<std::string, std::string> holdsForReservation_;
+    std::shared_ptr<InMemoryAvailabilityService> avail_;
+    std::shared_ptr<IPaymentGateway> pay_;
+    std::shared_ptr<NotificationService> notifier_;
+    int resCounter_ = 0;
+};
+
+Demo main 
+
+int main() {
+    Setup services
+    auto avail = std::make_shared<InMemoryAvailabilityService>();
+    create rooms
+    avail->addRoom(std::make_shared<Room>("R101", RoomType::SINGLE, 1, 50.0));
+    avail->addRoom(std::make_shared<Room>("R102", RoomType::DOUBLE, 2, 80.0));
+    avail->addRoom(std::make_shared<Room>("R201", RoomType::SUITE, 4, 200.0));
+
+    auto payment = std::make_shared<FakePaymentGateway>();
+    auto notifier = std::make_shared<NotificationService>();
+
+    ReservationManagerImpl manager(avail, payment, notifier);
+
+    create guest
+    auto guest = std::make_shared<Guest>("G-1", "Ivan Ivanov", "ivan@example.com");
+
+    create reservation (guest books for tomorrow for 2 nights)
+    Date from = days_from_now(1);
+    Date to = days_from_now(3); // 2 nights
+    auto res = manager.createReservation(guest, from, to);
+
+    find available doubles
+    auto availDoubles = avail->findAvailable(RoomType::DOUBLE, from, to);
+    if (!availDoubles.empty()) {
+        std::cout << "Found available room: " << availDoubles[0]->id() << "\n";
+    } else {
+        std::cout << "No doubles available\n";
+    }
+
+    Add room to reservation and block it
+    RatePlan rpDouble("RP-double", 80.0);
+    if (!manager.addRoomToReservation(res->id(), "R102", rpDouble)) {
+        std::cerr << "Failed to add room R102\n";
+        return 1;
+    }
+
+    std::cout << "Reservation total (before confirm): " << res->totalAmount() << "\n";
+
+    // Confirm with fake payment token
+    if (!manager.confirmReservation(res->id(), "tok_demo_visa")) {
+        std::cerr << "Failed to confirm\n";
+        return 1;
+    }
+
+    
+    auto final = manager.getReservation(res->id());
+    std::cout << "Final reservation status: " << (final->status() == ReservationStatus::CONFIRMED ? "CONFIRMED" : "OTHER") << "\n";
+    std::cout << "Rooms in reservation:\n";
+    for (auto& r : final->rooms()) {
+        std::cout << " - " << r->id() << " (" << date_to_string(from) << " -> " << date_to_string(to) << ")\n";
+    }
+
+    return 0;
+}

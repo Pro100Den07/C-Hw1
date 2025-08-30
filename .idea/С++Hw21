@@ -1,0 +1,430 @@
+
+#include <iostream>
+#include <vector>
+#include <memory>
+#include <random>
+#include <chrono>
+#include <cmath>
+#include <string>
+#include <map>
+#include <algorithm>
+#include <iomanip>
+
+using Clock = std::chrono::steady_clock;
+using ms = std::chrono::milliseconds;
+
+static std::mt19937_64 rng(123456789);
+
+
+double uniform_double(double a, double b) {
+    std::uniform_real_distribution<double> d(a,b);
+    return d(rng);
+}
+int uniform_int(int a, int b) {
+    std::uniform_int_distribution<int> d(a,b);
+    return d(rng);
+}
+
+
+namespace basic {
+
+enum class Dir { NORTH, SOUTH, EAST, WEST };
+
+struct Position {
+    double x; // along lane
+};
+
+class TrafficLight {
+public:
+   
+    TrafficLight(double cycle_seconds = 30.0, double green_ns_seconds = 15.0)
+        : cycle_(cycle_seconds), green_ns_(green_ns_seconds), t_(0.0) {}
+
+    void step(double dt) { t_ += dt; if (t_ >= cycle_) t_ -= cycle_; }
+
+    bool isGreenNS() const { return t_ < green_ns_; }
+    bool isGreenEW() const { return !isGreenNS(); }
+
+    double cycle() const { return cycle_; }
+    double time() const { return t_; }
+private:
+    double cycle_;
+    double green_ns_;
+    double t_;
+};
+
+struct Vehicle {
+    int id;
+    Dir dir;
+    double pos; // distance to intersection (pos decreases to 0)
+    double speed; // m/s
+    double desired_speed;
+    double wait_time = 0.0;
+    bool passed = false;
+    Vehicle(int id_, Dir d, double start_pos, double desired)
+        : id(id_), dir(d), pos(start_pos), speed(0.0), desired_speed(desired) {}
+};
+
+struct Metrics {
+    int passed = 0;
+    double total_wait = 0.0;
+    int stops = 0;
+    void addVehicle(const Vehicle& v) {
+        passed++;
+        total_wait += v.wait_time;
+    }
+    void print() const {
+        std::cout << "passed: " << passed << ", avg_wait: " << (passed? total_wait/passed : 0.0)
+                  << " s, stops: " << stops << "\n";
+    }
+};
+
+class IntersectionSim {
+public:
+    IntersectionSim()
+        : light(30.0, 15.0), nextId(1), time_s(0.0)
+    {}
+
+    // spawn vehicles at distance 100m from center
+    void spawnVehicles(double rate_per_sec) {
+       
+        double p = rate_per_sec * dt_;
+        for (auto d : {Dir::NORTH, Dir::SOUTH, Dir::EAST, Dir::WEST}) {
+            if (uniform_double(0.0,1.0) < p) {
+                double desired = uniform_double(8.0, 14.0); // 8-14 m/s (~30-50 km/h)
+                vehicles.emplace_back(nextId++, d, 100.0, desired);
+            }
+        }
+    }
+
+    void step() {
+        
+        spawnVehicles(spawnRate_);
+        light.step(dt_);
+        for (auto &v : vehicles) {
+            if (v.passed) continue;
+            // basic behavior: if at intersection (pos <= 5m) decide based on light
+            if (v.pos > 0.0) {
+                // approach: want to reach desired speed
+                double target = v.desired_speed;
+                // If light is red for this direction and close (<20m), decelerate to stop
+                bool green = isGreenFor(v.dir);
+                if (!green && v.pos < 25.0) {
+                    v.speed = std::max(0.0, v.speed - 4.0 * dt_);
+                    if (v.speed < 0.1) 
+                        v.wait_time += dt_;
+                    }
+                } else {
+                    // accelerate to desired
+                    v.speed = std::min(target, v.speed + 2.0 * dt_);
+                }
+                // move
+                v.pos -= v.speed * dt_;
+                if (v.pos <= 0.0) {
+                    // crossed intersection
+                    v.passed = true;
+                    metrics.addVehicle(v);
+                }
+            }
+        }
+        // advance time
+        time_s += dt_;
+        if (time_s - last_cleanup_ > 10.0) {
+            vehicles.erase(std::remove_if(vehicles.begin(), vehicles.end(),
+                [](const Vehicle& v){ return v.passed; }), vehicles.end());
+            last_cleanup_ = time_s;
+        }
+    }
+
+    void run(double sim_seconds, double dt = 0.5, double spawnRate = 0.1) {
+        dt_ = dt;
+        spawnRate_ = spawnRate;
+        double steps = sim_seconds / dt_;
+        for (int i=0;i< (int)steps; ++i) step();
+    }
+
+    void report() {
+        std::cout << "=== Basic model report ===\n";
+        std::cout << "Traffic light cycle: " << light.cycle() << " s, NS green = " << (light.isGreenNS()? "YES":"NO") << " (current time " << light.time() << ")\n";
+        metrics.print();
+    }
+
+private:
+    bool isGreenFor(Dir d) const {
+        if (d==Dir::NORTH || d==Dir::SOUTH) return light.isGreenNS();
+        return light.isGreenEW();
+    }
+
+    TrafficLight light;
+    std::vector<Vehicle> vehicles;
+    Metrics metrics;
+    int nextId;
+    double time_s;
+    double dt_ = 0.5;
+    double spawnRate_ = 0.1;
+    double last_cleanup_ = 0.0;
+};
+
+} 
+
+namespace extended {
+
+enum class DriverType { TAXI, NON_LOCAL, LOCAL };
+enum class PedType { LOCAL, TOURIST };
+enum class AgentKind { VEHICLE, PEDESTRIAN, CYCLIST };
+
+struct AgentBase {
+    AgentKind kind;
+    double pos; // distance to intersection; for pedestrians negative means on crosswalk
+    bool finished = false;
+    double wait_time = 0.0;
+    virtual ~AgentBase() = default;
+};
+
+struct Vehicle : public AgentBase {
+    int id;
+    DriverType dtype;
+    double speed;
+    double desired_speed;
+    bool running_red = false; // if ran red
+    Vehicle(int id_, DriverType dt, double start_pos, double desired) {
+        id = id_; kind = AgentKind::VEHICLE; dtype = dt; pos = start_pos; desired_speed = desired; speed = 0.0;
+    }
+};
+
+struct Pedestrian : public AgentBase {
+    int id;
+    PedType ptype;
+    double speed;
+    Pedestrian(int id_, PedType pt, double start_pos, double sp = 1.4) {
+        id = id_; kind = AgentKind::PEDESTRIAN; ptype = pt; pos = start_pos; speed = sp; // pos < 0 means waiting area distance from curb
+    }
+};
+
+struct Cyclist : public AgentBase {
+    int id;
+    bool behave_as_ped; // dynamic mode
+    double speed;
+    Cyclist(int id_, double start_pos) {
+        id = id_; kind = AgentKind::CYCLIST; pos = start_pos; behave_as_ped = false; speed = 5.0;
+    }
+};
+
+struct TrafficLight {
+    double cycle;
+    double green_ns;
+    double t;
+    TrafficLight(double c=30.0, double g=15.0): cycle(c), green_ns(g), t(0.0) {}
+    void step(double dt){ t += dt; if (t>=cycle) t -= cycle; }
+    bool greenNS() const { return t < green_ns; }
+    bool greenEW() const { return !greenNS(); }
+};
+
+struct Metrics {
+    int vehicles_passed = 0;
+    double total_vehicle_wait = 0.0;
+    int pedestrians_crossed = 0;
+    double total_ped_wait = 0.0;
+    int red_runs = 0;
+    void addVehicle(const Vehicle& v) { vehicles_passed++; total_vehicle_wait += v.wait_time; if (v.running_red) red_runs++; }
+    void addPed(const Pedestrian& p) { pedestrians_crossed++; total_ped_wait += p.wait_time; }
+    void print() const {
+        std::cout << "vehicles_passed: " << vehicles_passed << ", avg_wait_vehicle: " << (vehicles_passed? total_vehicle_wait/vehicles_passed : 0.0)
+                  << " s, pedestrians_crossed: " << pedestrians_crossed << ", avg_wait_ped: " << (pedestrians_crossed? total_ped_wait/pedestrians_crossed:0.0)
+                  << ", red_runs: " << red_runs << "\n";
+    }
+};
+
+class Simulation {
+public:
+    Simulation(double dt = 0.5) : light(30.0, 15.0), dt(dt), time_s(0.0), next_vid(1), next_pid(1), next_cid(1) {}
+
+    void setDriverShares(double taxi, double nonlocal, double local) {
+        shares["taxi"] = taxi; shares["nonlocal"] = nonlocal; shares["local"] = local;
+    }
+    void setPedProportions(double local_ped_share) { ped_local_share = local_ped_share; }
+
+    void spawn(double rate_per_direction) {
+        double p = rate_per_direction * dt;
+        for (int d = 0; d < 4; ++d) {
+            if (uniform_double(0.0,1.0) < p) {
+                // choose driver type by shares
+                double r = uniform_double(0.0,1.0);
+                DriverType dtp = DriverType::LOCAL;
+                if (r < shares["taxi"]) dtp = DriverType::TAXI;
+                else if (r < shares["taxi"] + shares["nonlocal"]) dtp = DriverType::NON_LOCAL;
+                double desired = uniform_double(7.0, 16.0);
+                vehicles.push_back(std::make_shared<Vehicle>(next_vid++, dtp, 100.0, desired));
+            }
+        }
+        // pedestrians occasionally
+        double pped = pedSpawnRate * dt;
+        if (uniform_double(0.0,1.0) < pped) {
+            PedType pt = (uniform_double(0.0,1.0) < ped_local_share) ? PedType::LOCAL : PedType::TOURIST;
+            pedestrians.push_back(std::make_shared<Pedestrian>(next_pid++, pt, 10.0)); // 10m from curb
+        }
+        if (uniform_double(0.0,1.0) < cycleSpawnRate * dt) {
+            cyclists.push_back(std::make_shared<Cyclist>(next_cid++, 100.0));
+        }
+    }
+
+    void step() {
+        spawn(spawnRate_);
+        light.step(dt);
+        for (auto &pv : vehicles) {
+            auto &v = *pv;
+            if (v.finished) continue;
+            // determine compliance probability by type
+            double compliance = 1.0;
+            double aggressiveness = 1.0;
+            double reaction = 0.5;
+            if (v.dtype == DriverType::TAXI) { compliance = 0.4; aggressiveness = 1.3; reaction = 0.3; }
+            else if (v.dtype == DriverType::NON_LOCAL) { compliance = 0.95; aggressiveness = 0.8; reaction = 0.8; }
+            else { // local
+                aggressiveness = uniform_double(0.8, 1.4);
+                compliance = std::clamp(0.6 / aggressiveness, 0.2, 0.98);
+            }
+            bool green = isGreenFor(v);
+            if (!green && v.pos < 25.0) {
+                if (uniform_double(0.0,1.0) > compliance) {
+                    v.running_red = true;
+                    v.speed = v.desired_speed * aggressiveness;
+                } else {
+                    v.speed = std::max(0.0, v.speed - 6.0 * dt); // brake hard
+                    if (v.speed < 0.1) v.wait_time += dt;
+                }
+            } else {
+                double target = v.desired_speed * aggressiveness;
+                v.speed = std::min(target, v.speed + 3.0 * dt);
+            }
+            v.pos -= v.speed * dt;
+            if (v.pos <= 0.0) {
+                v.finished = true;
+                metrics.addVehicle(v);
+            }
+        }
+        for (auto &pp : pedestrians) {
+            auto &p = *pp;
+            if (p.finished) continue;
+            if (p.ptype == PedType::TOURIST) {
+                bool pedOK = light.greenNS(); // assume they cross NS
+                if (pedOK) {
+                    p.pos -= p.speed * dt;
+                } else {
+                    p.wait_time += dt;
+                }
+            } else { // LOCAL - may jaywalk
+                if (uniform_double(0.0,1.0) < jaywalkRate) {
+                    p.pos -= p.speed * dt;
+                } else {
+                    bool pedOK = light.greenNS();
+                    if (pedOK) p.pos -= p.speed * dt;
+                    else p.wait_time += dt;
+                }
+            }
+            if (p.pos <= -2.0) { // crossed
+                p.finished = true;
+                metrics.addPed(p);
+            }
+        }
+
+        for (auto &cp : cyclists) {
+            auto &c = *cp;
+            if (c.finished) continue;
+            if (uniform_double(0.0,1.0) < 0.02) c.behave_as_ped = !c.behave_as_ped;
+            if (c.behave_as_ped) {
+                bool pedOK = light.greenNS();
+                if (pedOK) c.pos -= c.speed * dt;
+                else c.wait_time += dt;
+            } else {
+                double desired = 6.0;
+                double speed_target = desired;
+                bool green = light.greenNS();
+                if (!green && c.pos < 20.0) {
+                    if (uniform_double(0.0,1.0) < 0.15) {
+                        c.pos -= speed_target * dt;
+                    } else {
+                        c.wait_time += dt;
+                    }
+                } else {
+                    c.pos -= speed_target * dt;
+                }
+            }
+            if (c.pos <= 0.0) { c.finished = true; metrics.vehicles_passed++; metrics.total_vehicle_wait += c.wait_time; }
+        }
+        if (time_s - last_cleanup > 10.0) {
+            vehicles.erase(std::remove_if(vehicles.begin(), vehicles.end(), [](auto &p){ return p->finished; }), vehicles.end());
+            pedestrians.erase(std::remove_if(pedestrians.begin(), pedestrians.end(), [](auto &p){ return p->finished; }), pedestrians.end());
+            cyclists.erase(std::remove_if(cyclists.begin(), cyclists.end(), [](auto &p){ return p->finished; }), cyclists.end());
+            last_cleanup = time_s;
+        }
+
+        time_s += dt;
+    }
+
+    void run(double sim_seconds) {
+        int steps = int(sim_seconds / dt);
+        for (int i=0;i<steps;++i) step();
+    }
+
+    void report() {
+        std::cout << "=== Extended model report ===\n";
+        std::cout << "Time simulated: " << time_s << " s\n";
+        metrics.print();
+        std::cout << "remaining agents: veh=" << vehicles.size() << " ped=" << pedestrians.size() << " cyc=" << cyclists.size() << "\n";
+    }
+
+    double spawnRate_() const { return spawnRate_; }
+    double spawnRate_ = 0.2; // per-direction per-sec expected
+    double pedSpawnRate = 0.05;
+    double cycleSpawnRate = 0.02;
+    double jaywalkRate = 0.2; // locals
+    double dt = 0.5;
+
+private:
+    bool isGreenFor(const Vehicle& v) const {
+        return light.greenNS();
+    }
+
+    TrafficLight light;
+    std::vector<std::shared_ptr<Vehicle>> vehicles;
+    std::vector<std::shared_ptr<Pedestrian>> pedestrians;
+    std::vector<std::shared_ptr<Cyclist>> cyclists;
+    Metrics metrics;
+    double time_s;
+    double last_cleanup = 0.0;
+
+    int next_vid, next_pid, next_cid;
+    std::map<std::string,double> shares{{"taxi",0.1},{"nonlocal",0.2},{"local",0.7}};
+    double ped_local_share = 0.6;
+    double spawnRate = 0.1;
+};
+
+void run_basic_scenario() {
+    basic::IntersectionSim sim;
+    sim.run(120.0, 0.5, 0.08); // 2 min
+    sim.report();
+}
+
+} 
+
+int main() {
+    std::cout << std::fixed << std::setprecision(3);
+    std::cout << "Running BASIC model (1)...\n";
+    basic::IntersectionSim sim1;
+    sim1.run(120.0, 0.5, 0.08); // 2 minutes, dt=0.5s, spawnRate per dir
+    sim1.report();
+    std::cout << "\nRunning EXTENDED model (2)...\n";
+    extended::Simulation sim2(0.5);
+    sim2.setDriverShares(0.12, 0.18, 0.70); // taxi, non-local, local
+    sim2.pedSpawnRate = 0.06;
+    sim2.cycleSpawnRate = 0.02;
+    sim2.jaywalkRate = 0.25;
+    for (int i=0;i<10;++i) { // run in chunks to vary maybe
+        sim2.spawnRate_ = 0.25;
+        sim2.run(30.0); // 30s * 10 = 300s
+    }
+    sim2.report();
+
+    return 0;
+}

@@ -1,0 +1,52 @@
+#include <iostream>
+#include <string>
+using namespace std;
+
+class MyException {
+public:
+    MyException(int code, string msg) : errorCode(code), message(msg) {}
+    int getCode() const { return errorCode; }
+    string getMessage() const { return message; }
+
+private:
+    int errorCode;
+    string message;
+};
+
+class FileException : public MyException {
+public:
+    FileException(string filename)
+        : MyException(500, "Помилка роботи з файлом"), file(filename) {}
+    
+    string getFile() const { return file; }
+
+private:
+    string file;
+};
+
+void level3() {
+    throw FileException("data.txt");
+}
+
+void level2() {
+    level3();
+}
+
+void level1() {
+    level2();
+}
+
+int main() {
+    try {
+        level1();
+    }
+    catch (const FileException& e) {
+        cout << "FileException: " << e.getMessage() 
+             << " у файлі: " << e.getFile() << endl;
+    }
+    catch (const MyException& e) {
+        cout << "MyException: " << e.getMessage() 
+             << " (код " << e.getCode() << ")" << endl;
+    }
+    return 0;
+}
